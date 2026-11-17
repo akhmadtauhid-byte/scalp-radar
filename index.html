@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Scalp Radar</title>
+<style>
+:root{--bg:#0b0f14;--card:#121a23;--line:#1e2a37;--tx:#e6edf3;--mut:#8a99a8;--g:#2ecc71;--r:#ff5c5c;--y:#f5b942;--b:#4da3ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:40px}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;position:sticky;top:0;background:var(--bg);z-index:5;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0;letter-spacing:.5px}
+#stat{font-size:12px;color:var(--mut)}
+nav{display:flex;gap:6px;padding:10px 12px;overflow-x:auto}
+nav button{flex:1;min-width:76px;background:var(--card);color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:9px 6px;font-size:13px}
+nav button.on{color:var(--tx);border-color:var(--g);background:#13261c}
+main{padding:0 12px}
+section{display:none}section.on{display:block}
+button{cursor:pointer;font-family:inherit}
+.btn{background:var(--g);color:#06210f;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px}
+.btn.alt{background:var(--card);color:var(--tx);border:1px solid var(--line)}
+.btn.red{background:#3a1717;color:#ffb3b3;border:1px solid #5a2222}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+.mut{color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.card.buy{border-color:var(--g);box-shadow:0 0 0 1px var(--g) inset}
+.card.watch{border-color:var(--y)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sym{font-weight:700;font-size:15px}
+.badge{font-size:11px;font-weight:700;border-radius:20px;padding:3px 9px}
+.badge.buy{background:var(--g);color:#06210f}
+.badge.watch{background:#3a2e10;color:var(--y)}
+.badge.wait{background:#1b2530;color:var(--mut)}
+.meter{height:6px;background:#1b2530;border-radius:4px;margin:8px 0;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--b)}
+.card.buy .meter i{background:var(--g)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px;margin-top:6px}
+.grid div{background:#0e151d;border-radius:8px;padding:6px 8px}
+.grid b{display:block;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chip{font-size:11px;background:#0e151d;border:1px solid var(--line);border-radius:12px;padding:2px 8px;color:var(--mut)}
+.rej{font-size:12px;color:var(--y);margin-top:6px}
+label.f{display:block;margin:10px 0 4px;color:var(--mut);font-size:12px}
+input,select{width:100%;background:#0e151d;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px}
+input[type=checkbox]{width:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+.tw{overflow-x:auto}
+.pos{color:var(--g)}.neg{color:var(--r)}
+canvas{width:100%;height:150px;background:#0e151d;border-radius:10px;margin-top:8px}
+.note{font-size:12px;color:var(--mut);margin:10px 0;line-height:1.5}
+.warn{background:#2a1f0c;border:1px solid #5a4313;color:#f1d08a;border-radius:10px;padding:10px;font-size:12px;margin:10px 0}
+h3{margin:16px 0 6px;font-size:14px}
+.kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:16px}
+footer{padding:14px;text-align:center;color:var(--mut);font-size:11px}
+</style>
+</head>
+<body>
+<header><h1>⚡ SCALP RADAR</h1><div id="stat">siap</div></header>
+<nav>
+<button data-tab="radar" class="on">Radar</button>
+<button data-tab="bt">Backtest</button>
+<button data-tab="jr">Jurnal</button>
+<button data-tab="st">Setelan</button>
+</nav>
+<main>
+
+<section id="tab-radar" class="on">
+<div class="bar">
+<button class="btn" id="btnScan">Pindai sekarang</button>
+<label class="mut"><input type="checkbox" id="auto"> Otomatis</label>
+<span class="mut" id="last"></span>
+</div>
+<div class="warn">Tab ini harus tetap terbuka agar pemindaian jalan. Sinyal adalah hasil aturan indikator, bukan jaminan untung. Selalu uji dulu di Backtest dan Jurnal (paper).</div>
+<div id="cards"></div>
+</section>
+
+<section id="tab-bt">
+<label class="f">Koin</label>
+<select id="btSym"></select>
+<label class="f">Jumlah candle (maks 5000)</label>
+<input id="btN" type="number" value="3000">
+<div class="bar" style="margin-top:12px"><button class="btn" id="btRun">Jalankan backtest</button><span class="mut" id="btMsg"></span></div>
+<div id="btOut"></div>
+</section>
+
+<section id="tab-jr">
+<div id="jrKpi" class="kpi"></div>
+<canvas id="jrCv"></canvas>
+<label class="mut" style="display:block;margin:12px 0"><input type="checkbox" id="autoPaper"> Buka posisi paper otomatis saat ada sinyal</label>
+<h3>Posisi terbuka</h3>
+<div class="tw"><table id="jrOpen"></table></div>
+<h3>Riwayat</h3>
+<div class="tw"><table id="jrClosed"></table></div>
+<div class="bar" style="margin-top:14px"><button class="btn alt" id="jrCsv">Ekspor CSV</button><button class="btn red" id="jrReset">Reset jurnal</button></div>
+</section>
+
+<section id="tab-st">
+<div class="bar"><button class="btn alt" id="pIDR">Preset Tokocrypto (IDR)</button><button class="btn alt" id="pUSDT">Preset Binance (USDT)</button></div>
+<div class="note">Preset IDR: fee 0,22% per sisi (taker rupiah + CFX) dan slippage 0,05%. Jika ada promo "0 Fee" atau memakai order Limit (maker), ubah fee secara manual.</div>
+<div id="form"></div>
+<div class="bar" style="margin-top:14px"><button class="btn" id="stSave">Simpan</button><button class="btn alt" id="stTg">Tes Telegram</button><span class="mut" id="stMsg"></span></div>
+<div class="note">Data harga: API publik Binance (pasar spot). Fee Binance dan Tokocrypto berbeda, isi fee sesuai akun Anda agar hitungan bersih akurat. Token Telegram tersimpan hanya di browser perangkat ini.</div>
+</section>
+
+</main>
+<footer>Bukan saran investasi. Trading berisiko rugi, termasuk seluruh modal.</footer>
+
+<script>
+// ==CORE==
+const TFMS={'1m':60000,'3m':180000,'5m':300000,'15m':900000};
+function ema(a,p){const k=2/(p+1),o=new Array(a.length);let e=a[0];for(let i=0;i<a.length;i++){e=i===0?a[0]:a[i]*k+e*(1-k);o[i]=e}return o}
+function rsiS(c,p=14){const o=new Array(c.length).fill(null);if(c.length<=p)return o;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d}g/=p;l/=p;o[p]=l===0?100:100-100/(1+g/l);for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p;o[i]=l===0?100:100-100/(1+g/l)}return o}
+function atrS(h,l,c,p=14){const n=c.length,tr=new Array(n),o=new Array(n).fill(null);tr[0]=h[0]-l[0];for(let i=1;i<n;i++)tr[i]=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));if(n<p)return o;let a=0;for(let i=0;i<p;i++)a+=tr[i];a/=p;o[p-1]=a;for(let i=p;i<n;i++){a=(a*(p-1)+tr[i])/p;o[i]=a}return o}
+function prepare(cs){
+  const o=cs.map(x=>x.o),h=cs.map(x=>x.h),l=cs.map(x=>x.l),c=cs.map(x=>x.c),v=cs.map(x=>x.v);
+  const n=cs.length,pv=[0],pq=[0],pvol=[0];
+  for(let i=0;i<n;i++){const tp=(h[i]+l[i]+c[i])/3;pv.push(pv[i]+tp*v[i]);pvol.push(pvol[i]+v[i])}
+  const vwap=new Array(n).fill(null),W=48;
+  for(let i=W-1;i<n;i++){const vv=pvol[i+1]-pvol[i+1-W];vwap[i]=vv>0?(pv[i+1]-pv[i+1-W])/vv:c[i]}
+  return{o,h,l,c,v,e9:ema(c,9),e21:ema(c,21),e50:ema(c,50),rsi:rsiS(c),atr:atrS(h,l,c),vwap,t:cs.map(x=>x.t)};
+}
+function signalAt(ind,i,cfg,entryPx){
+  if(i<60||ind.atr[i]==null||ind.rsi[i]==null||ind.vwap[i]==null)return null;
+  const{o,h,l,c,v,e9,e21,e50,rsi,atr,vwap}=ind;
+  let score=0;const why=[];
+  const gate=e9[i]>e21[i];
+  if(gate){score+=20;why.push('EMA9>EMA21')}
+  if(c[i]>e50[i]){score+=10;why.push('Di atas EMA50')}
+  if(e21[i]>e21[i-3]){score+=5;why.push('EMA21 naik')}
+  const r=rsi[i];
+  if(r>=50&&r<=70){score+=15;why.push('RSI '+r.toFixed(0))}else if(r>=45&&r<50){score+=5;why.push('RSI '+r.toFixed(0))}else if(r>75){score-=15;why.push('RSI jenuh beli')}
+  if(rsi[i-1]!=null&&r>rsi[i-1]){score+=5;why.push('RSI naik')}
+  let vs=0;for(let k=i-20;k<i;k++)vs+=v[k];const vavg=vs/20,volR=vavg>0?v[i]/vavg:0;
+  if(volR>=1.5){score+=20;why.push('Volume x'+volR.toFixed(1))}else if(volR>=1.2){score+=10;why.push('Volume x'+volR.toFixed(1))}
+  if(c[i]>vwap[i]){score+=10;why.push('Di atas VWAP')}
+  let hh=-Infinity;for(let k=i-20;k<i;k++)if(h[k]>hh)hh=h[k];
+  if(c[i]>hh){score+=10;why.push('Breakout 20 candle')}
+  else if(l[i]<=e21[i]*1.001&&c[i]>e21[i]&&c[i]>o[i]){score+=10;why.push('Pantulan EMA21')}
+  if(c[i]>o[i]){score+=5;why.push('Candle hijau')}
+  score=Math.max(0,Math.min(100,score));
+  const entry=entryPx||c[i],a=atr[i];
+  const tp=entry+cfg.tpAtr*a,sl=entry-cfg.slAtr*a;
+  const tpPct=(tp-entry)/entry*100,slPct=(entry-sl)/entry*100;
+  const cost=2*(cfg.fee+cfg.slip);
+  const netTP=tpPct-cost,netSL=slPct+cost,rr=netTP>0?netTP/netSL:0;
+  let reject=null;
+  if(!gate)reject='Tren belum naik (EMA9 di bawah EMA21)';
+  else if(netTP<=0)reject='Target ('+tpPct.toFixed(2)+'%) lebih kecil dari biaya ('+cost.toFixed(2)+'%)';
+  else if(rr<cfg.minRR)reject='R:R bersih '+rr.toFixed(2)+' di bawah '+cfg.minRR;
+  else if(score<cfg.minScore)reject='Skor '+score+' di bawah batas '+cfg.minScore;
+  return{score,why,gate,ok:!reject,reject,rsi:r,volR,atrPct:a/c[i]*100,entry,tp,sl,tpPct,slPct,netTP,netSL,rr,cost,candleT:ind.t[i]};
+}
+function backtest(cs,cfg){
+  const ind=prepare(cs),trades=[],cost=2*(cfg.fee+cfg.slip);let i=60;
+  while(i<cs.length-2){
+    const s=signalAt(ind,i,cfg);
+    if(s&&s.ok){
+      const ei=i+1,entry=ind.o[ei],a=ind.atr[i],tp=entry+cfg.tpAtr*a,sl=entry-cfg.slAtr*a;
+      let exit=null,reason='',j=ei;
+      for(;j<cs.length&&j<=ei+cfg.maxBars;j++){
+        if(ind.l[j]<=sl){exit=sl;reason='SL';break}
+        if(ind.h[j]>=tp){exit=tp;reason='TP';break}
+      }
+      if(exit===null){j=Math.min(ei+cfg.maxBars,cs.length-1);exit=ind.c[j];reason='WAKTU'}
+      const net=(exit-entry)/entry*100-cost;
+      trades.push({t:cs[ei].t,entry,exit,reason,net,bars:j-ei});
+      i=j+1;
+    }else i++;
+  }
+  return trades;
+}
+function stats(tr){
+  const n=tr.length;if(!n)return{n:0,wins:0,wr:0,avgW:0,avgL:0,sum:0,pf:0,exp:0,dd:0,curve:[]};
+  let w=0,gw=0,gl=0,sum=0,peak=0,dd=0;const curve=[];
+  for(const t of tr){if(t.net>0){w++;gw+=t.net}else gl+=-t.net;sum+=t.net;curve.push(sum);if(sum>peak)peak=sum;if(peak-sum>dd)dd=peak-sum}
+  return{n,wins:w,wr:w/n*100,avgW:w?gw/w:0,avgL:n-w?gl/(n-w):0,sum,pf:gl>0?gw/gl:(gw>0?99:0),exp:sum/n,dd,curve};
+}
+// ==/CORE==
+
+const $=s=>document.querySelector(s);
+const LSK='scalpradar.v1',LSJ='scalpradar.journal.v1';
+const DEF={tf:'5m',quote:'IDR',symbols:'BTC,ETH,BNB,SOL,XRP,DOGE,ADA,TRX,LINK,AVAX',fee:0.22,slip:0.05,tpAtr:2,slAtr:1.2,minScore:70,minRR:1,maxBars:24,cooldown:15,refresh:15,modal:1000,risk:1,tgToken:'',tgChat:'',autoPaper:false};
+const FIELDS=[
+['tf','Timeframe','sel',['1m','3m','5m','15m']],
+['quote','Pasangan (IDR = Tokocrypto rupiah)','sel',['IDR','USDT']],
+['symbols','Daftar koin (kode saja, pisah koma)','txt'],
+['fee','Fee per sisi (%)','num'],
+['slip','Slippage per sisi (%)','num'],
+['tpAtr','Target profit (× ATR)','num'],
+['slAtr','Stop loss (× ATR)','num'],
+['minScore','Skor minimum sinyal (0-100)','num'],
+['minRR','R:R bersih minimum','num'],
+['maxBars','Batas waktu posisi (jumlah candle)','num'],
+['cooldown','Jeda alarm per koin (menit)','num'],
+['refresh','Interval pindai (detik)','num'],
+['modal','Modal paper trading (USDT)','num'],
+['risk','Risiko per transaksi (% modal)','num'],
+['tgToken','Telegram Bot Token (opsional)','txt'],
+['tgChat','Telegram Chat ID (opsional)','txt']
+];
+function load(k,d){try{const x=JSON.parse(localStorage.getItem(k));return x?x:d}catch(e){return d}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+let cfg=Object.assign({},DEF,load(LSK,{}));
+let jr=load(LSJ,{open:[],closed:[]});
+const S={data:{},sig:{},lastAlert:{},timer:null,busy:false,wake:null};
+
+function syms(){const o=[];cfg.symbols.split(',').map(s=>s.trim().toUpperCase().replace(/[_\/]?(USDT|IDR)$/,'')).forEach(s=>{if(/^[A-Z0-9]{2,10}$/.test(s)&&o.indexOf(s)<0)o.push(s)});return o}
+function fmt(p){if(p==null||isNaN(p))return'-';if(p>=1000)return p.toLocaleString('id-ID',{maximumFractionDigits:0});if(p>=100)return p.toFixed(2);if(p>=1)return p.toFixed(4);return p.toPrecision(4)}
+function pct(x,d=2){return(x>=0?'+':'')+x.toFixed(d)+'%'}
+function cl(x){return x>=0?'pos':'neg'}
+function jt(ms){return new Date(ms).toLocaleString('id-ID',{timeZone:'Asia/Jakarta',hour12:false,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+
+// ---------- API ----------
+const BASES=['https://data-api.binance.vision','https://api.binance.com','https://api1.binance.com'];let bi=0;
+async function api(path){let err;for(let k=0;k<BASES.length;k++){const b=BASES[(bi+k)%BASES.length];try{const r=await fetch(b+path);if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();bi=(bi+k)%BASES.length;return j}catch(e){err=e}}throw err}
+const mapK=a=>a.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+async function getK(sym,tf,lim){return mapK(await api(`/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${lim}`))}
+async function getKN(sym,tf,n){let out=[],end=null;while(out.length<n){const lim=Math.min(1000,n-out.length);const a=await api(`/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${lim}`+(end?`&endTime=${end}`:''));if(!a.length)break;const m=mapK(a);out=m.concat(out);end=m[0].t-1;if(a.length<lim)break}return out}
+
+const TOKO='https://www.tokocrypto.com';
+async function tokoK(base,tf,lim){
+  const r=await fetch(`${TOKO}/open/v1/market/klines?symbol=${base}_IDR&interval=${tf}&limit=${lim}`);
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  let a=Array.isArray(j)?j:(j&&j.data);
+  if(a&&!Array.isArray(a)&&Array.isArray(a.data))a=a.data;
+  if(!Array.isArray(a)||!a.length)throw new Error('format');
+  const m=a.map(k=>Array.isArray(k)?{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}:{t:+(k.openTime||k.t),o:+k.open,h:+k.high,l:+k.low,c:+k.close,v:+k.volume});
+  if(m.some(x=>!isFinite(x.c)||!isFinite(x.t)||!isFinite(x.v)))throw new Error('format');
+  m.sort((x,y)=>x.t-y.t);return m;
+}
+async function fetchK(base,tf,lim){
+  if(cfg.quote==='IDR'){
+    try{const m=await tokoK(base,tf,lim);if(m.length>=80)return{cs:m,src:'Tokocrypto IDR'}}catch(e){}
+    return{cs:await getK(base+'USDT',tf,lim),src:'Binance USDT (cadangan)'};
+  }
+  return{cs:await getK(base+'USDT',tf,lim),src:'Binance USDT'};
+}
+const curOf=src=>src&&src.indexOf('IDR')>=0?'IDR':'USDT';
+
+// ---------- Alert ----------
+function beep(){try{const A=new(window.AudioContext||window.webkitAudioContext)(),o=A.createOscillator(),g=A.createGain();o.connect(g);g.connect(A.destination);o.frequency.value=880;g.gain.value=.15;o.start();setTimeout(()=>{o.stop();A.close()},250)}catch(e){}}
+async function tg(text){if(!cfg.tgToken||!cfg.tgChat)return false;try{const r=await fetch(`https://api.telegram.org/bot${encodeURIComponent(cfg.tgToken)}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.tgChat,text})});const j=await r.json();return!!j.ok}catch(e){return false}}
+function alertSignal(sym,s,src){
+  const cu=curOf(src);
+  const txt=`SINYAL BELI ${sym}/${cu} (${cfg.tf})\nSkor ${s.score}/100\nMasuk ~${fmt(s.entry)} ${cu}\nTP ${fmt(s.tp)} (${pct(s.tpPct)})\nSL ${fmt(s.sl)} (-${s.slPct.toFixed(2)}%)\nR:R bersih ${s.rr.toFixed(2)}\nSumber: ${src}\n${s.why.join(', ')}`;
+  beep();try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}
+  try{if('Notification'in window&&Notification.permission==='granted')new Notification('Scalp Radar: '+sym,{body:`Skor ${s.score} | TP ${fmt(s.tp)} | SL ${fmt(s.sl)}`})}catch(e){}
+  tg(txt);
+}
+
+// ---------- Paper ----------
+function equity(){return cfg.modal+jr.closed.reduce((a,t)=>a+t.pnl,0)}
+function openPaper(sym,s,price,candleT,src){
+  if(jr.open.some(p=>p.sym===sym))return;
+  const eq=equity(),cost=2*(cfg.fee+cfg.slip),slFrac=(s.slPct+cost)/100;
+  const size=Math.min(eq*cfg.risk/100/slFrac,eq);if(size<=0)return;
+  jr.open.push({id:Date.now()+sym,sym,src,entry:price,tp:s.tp,sl:s.sl,size,openAt:Date.now(),entryCandleT:candleT,score:s.score});
+  save(LSJ,jr);
+}
+function closePaper(p,exit,reason){
+  const net=(exit-p.entry)/p.entry*100-2*(cfg.fee+cfg.slip);
+  jr.closed.unshift(Object.assign({},p,{exit,reason,net,pnl:p.size*net/100,closeAt:Date.now()}));
+  jr.open=jr.open.filter(x=>x.id!==p.id);
+}
+function updatePaper(){
+  const ms=TFMS[cfg.tf]||300000;let ch=false;
+  for(const p of jr.open.slice()){
+    const d=S.data[p.sym];if(!d||!d.candles||d.src!==p.src)continue;
+    const cs=d.candles,last=cs[cs.length-1];let done=false;
+    for(const c of cs){if(c.t<=p.entryCandleT)continue;
+      if(c.l<=p.sl){closePaper(p,p.sl,'SL');done=true;break}
+      if(c.h>=p.tp){closePaper(p,p.tp,'TP');done=true;break}}
+    if(!done){
+      if(last.c<=p.sl){closePaper(p,p.sl,'SL');done=true}
+      else if(last.c>=p.tp){closePaper(p,p.tp,'TP');done=true}
+      else if((Date.now()-p.openAt)/ms>=cfg.maxBars){closePaper(p,last.c,'WAKTU');done=true}
+    }
+    if(done)ch=true;
+  }
+  if(ch)save(LSJ,jr);
+}
+
+// ---------- Scan ----------
+async function scanAll(){
+  if(S.busy)return;S.busy=true;$('#stat').textContent='memindai…';
+  const list=syms();
+  const res=await Promise.allSettled(list.map(s=>fetchK(s,cfg.tf,300)));
+  let okc=0;
+  res.forEach((r,idx)=>{
+    const sym=list[idx];
+    if(r.status!=='fulfilled'||r.value.cs.length<80){S.data[sym]={err:true};return}
+    okc++;
+    const cs=r.value.cs,src=r.value.src,closed=cs.slice(0,-1),price=cs[cs.length-1].c;
+    S.data[sym]={candles:cs,price,src};
+    const ind=prepare(closed),s=signalAt(ind,closed.length-1,cfg,price);
+    S.sig[sym]=s;
+    if(s&&s.ok&&S.lastAlert[sym]!==s.candleT){
+      const gap=Date.now()-(S.lastAlert[sym+'_ts']||0);
+      if(gap>=cfg.cooldown*60000){
+        S.lastAlert[sym]=s.candleT;S.lastAlert[sym+'_ts']=Date.now();
+        alertSignal(sym,s,src);
+        if(cfg.autoPaper)openPaper(sym,s,price,cs[cs.length-1].t,src);
+      }
+    }
+  });
+  updatePaper();
+  $('#last').textContent='Update '+new Date().toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour12:false});
+  $('#stat').textContent=okc?`${okc}/${list.length} koin`:'gagal ambil data';
+  S.busy=false;renderRadar();renderJr();
+}
+function card(sym){
+  const d=S.data[sym],s=S.sig[sym];
+  if(!d)return`<div class="card"><b>${sym}</b> <span class="mut">memuat…</span></div>`;
+  if(d.err||!s)return`<div class="card"><b>${sym}</b> <span class="mut">data tidak tersedia</span></div>`;
+  const cls=s.ok?'buy':(s.gate&&s.score>=cfg.minScore-15?'watch':'wait');
+  const lab=s.ok?'SINYAL BELI':(cls==='watch'?'PANTAU':'TUNGGU');
+  return`<div class="card ${cls}">
+<div class="row"><span class="sym">${sym}<span class="mut">/${curOf(d.src)}</span></span><span class="badge ${cls}">${lab}</span></div>
+<div class="row" style="margin-top:4px"><span>${fmt(d.price)}</span><span class="mut">Skor ${s.score}/100</span></div>
+<div class="meter"><i style="width:${s.score}%"></i></div>
+<div class="grid">
+<div class="mut">Target<b class="pos">${fmt(s.tp)}</b>${pct(s.tpPct)}</div>
+<div class="mut">Stop loss<b class="neg">${fmt(s.sl)}</b>-${s.slPct.toFixed(2)}%</div>
+<div class="mut">R:R bersih<b>${s.rr.toFixed(2)}</b>biaya ${s.cost.toFixed(2)}%</div>
+</div>
+<div class="chips"><span class="chip" style="color:${d.src.indexOf('cadangan')>=0?'#f5b942':'#8a99a8'}">${d.src}</span><span class="chip">RSI ${s.rsi.toFixed(0)}</span><span class="chip">Vol x${s.volR.toFixed(1)}</span><span class="chip">ATR ${s.atrPct.toFixed(2)}%</span>${s.why.slice(0,5).map(w=>`<span class="chip">${w}</span>`).join('')}</div>
+${s.reject?`<div class="rej">⚠ ${s.reject}</div>`:''}
+</div>`;
+}
+function renderRadar(){
+  const list=syms().slice().sort((a,b)=>((S.sig[b]||{}).ok?1000:0)+((S.sig[b]||{}).score||0)-(((S.sig[a]||{}).ok?1000:0)+((S.sig[a]||{}).score||0)));
+  $('#cards').innerHTML=list.map(card).join('')||'<div class="note">Belum ada koin. Isi di Setelan.</div>';
+}
+
+// ---------- Backtest ----------
+function drawLine(cv,ys){
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+  cv.width=w*dpr;cv.height=h*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
+  if(ys.length<2){g.fillStyle='#8a99a8';g.font='12px sans-serif';g.fillText('Belum ada data',10,20);return}
+  let mn=0,mx=0;for(const y of ys){if(y<mn)mn=y;if(y>mx)mx=y}if(mx===mn)mx=mn+1;
+  const X=i=>4+i/(ys.length-1)*(w-8),Y=v=>h-6-(v-mn)/(mx-mn)*(h-12);
+  g.strokeStyle='#2a3948';g.beginPath();g.moveTo(0,Y(0));g.lineTo(w,Y(0));g.stroke();
+  g.strokeStyle=ys[ys.length-1]>=0?'#2ecc71':'#ff5c5c';g.lineWidth=1.8;g.beginPath();
+  ys.forEach((y,i)=>{i?g.lineTo(X(i),Y(y)):g.moveTo(X(i),Y(y))});g.stroke();
+}
+function statRow(name,s){return`<tr><td>${name}</td><td>${s.n}</td><td>${s.wr.toFixed(0)}%</td><td class="${cl(s.sum)}">${pct(s.sum,1)}</td><td>${s.pf.toFixed(2)}</td><td>${s.dd.toFixed(1)}%</td></tr>`}
+async function runBt(){
+  const sel=$('#btSym').value,n=Math.max(300,Math.min(5000,+$('#btN').value||3000));
+  const list=sel==='ALL'?syms():[sel];$('#btRun').disabled=true;let all=[];const rows=[];
+  for(let k=0;k<list.length;k++){
+    $('#btMsg').textContent=`Memuat ${list[k]} (${k+1}/${list.length})…`;
+    try{
+      const cs=(await getKN(list[k]+'USDT',cfg.tf,n+1)).slice(0,-1);
+      const tr=backtest(cs,cfg);tr.forEach(t=>t.sym=list[k]);all=all.concat(tr);rows.push([list[k],stats(tr),cs.length]);
+    }catch(e){rows.push([list[k],null,0])}
+  }
+  all.sort((a,b)=>a.t-b.t);const tot=stats(all);
+  const bars=rows.reduce((a,r)=>a+r[2],0),days=(rows.length&&rows[0][2])?(rows[0][2]*(TFMS[cfg.tf]||300000)/86400000):0;
+  let verdict;
+  if(!tot.n)verdict='Tidak ada transaksi. Aturan terlalu ketat atau target tidak melewati biaya.';
+  else if(tot.sum<=0)verdict='Hasil bersih NEGATIF setelah fee dan slippage. Aturan ini belum layak dipakai dengan uang asli.';
+  else if(tot.pf<1.3||tot.n<30)verdict='Positif tetapi tipis atau sampel sedikit. Lanjutkan uji di paper trading sebelum percaya.';
+  else verdict='Positif pada data historis ini. Tetap uji di paper trading: hasil lampau tidak menjamin ke depan.';
+  $('#btOut').innerHTML=`<div class="note">Backtest memakai data Binance (pasangan USDT) sebagai pendekatan, karena histori panjang pasangan IDR tidak tersedia. Pergerakan persentasenya mirip, tetapi spread pasangan IDR biasanya lebih lebar, jadi hasil nyata bisa lebih buruk.</div><div class="note">Periode uji ±${days.toFixed(1)} hari (${cfg.tf}). Entry di open candle berikutnya setelah sinyal; jika TP dan SL tersentuh di candle yang sama, dihitung SL (konservatif). Biaya bolak-balik ${(2*(cfg.fee+cfg.slip)).toFixed(2)}%.</div>
+<div class="kpi"><div class="mut">Transaksi<b>${tot.n}</b></div><div class="mut">Win rate<b>${tot.wr.toFixed(0)}%</b></div><div class="mut">Total bersih<b class="${cl(tot.sum)}">${pct(tot.sum,1)}</b></div><div class="mut">Profit factor<b>${tot.pf.toFixed(2)}</b></div><div class="mut">Rata-rata/transaksi<b class="${cl(tot.exp)}">${pct(tot.exp,3)}</b></div><div class="mut">Drawdown maks<b>${tot.dd.toFixed(1)}%</b></div></div>
+<div class="${tot.sum>0?'note':'warn'}">${verdict}</div>
+<canvas id="btCv"></canvas>
+<div class="note">Kurva = total % bersih kumulatif (satu porsi per transaksi).</div>
+<div class="tw"><table><tr><th>Koin</th><th>Trx</th><th>Win</th><th>Bersih</th><th>PF</th><th>DD</th></tr>${rows.map(r=>r[1]?statRow(r[0].replace('USDT',''),r[1]):`<tr><td>${r[0]}</td><td colspan=5>gagal</td></tr>`).join('')}${rows.length>1?statRow('<b>TOTAL</b>',tot):''}</table></div>
+<div class="note">Waspadai overfitting: jangan mengutak-atik setelan sampai hasil backtest bagus lalu menganggapnya pasti. Uji lagi di periode lain dan di paper trading.</div>`;
+  drawLine($('#btCv'),tot.curve);$('#btMsg').textContent='Selesai';$('#btRun').disabled=false;
+}
+
+// ---------- Jurnal ----------
+function renderJr(){
+  const cs=jr.closed,n=cs.length,w=cs.filter(t=>t.pnl>0).length,pnl=cs.reduce((a,t)=>a+t.pnl,0),eq=cfg.modal+pnl;
+  $('#jrKpi').innerHTML=`<div class="mut">Ekuitas (USDT)<b class="${cl(pnl)}">${eq.toFixed(2)}</b></div><div class="mut">P&amp;L bersih<b class="${cl(pnl)}">${pnl>=0?'+':''}${pnl.toFixed(2)}</b></div><div class="mut">Transaksi<b>${n}</b></div><div class="mut">Win rate<b>${n?(w/n*100).toFixed(0):0}%</b></div>`;
+  let run=0;const curve=cs.slice().reverse().map(t=>run+=t.pnl);
+  if($('#tab-jr').classList.contains('on'))drawLine($('#jrCv'),curve);
+  $('#jrOpen').innerHTML=jr.open.length?`<tr><th>Koin</th><th>Masuk</th><th>TP</th><th>SL</th><th>Floating</th></tr>`+jr.open.map(p=>{const d=S.data[p.sym],px=d&&d.price,fl=px?(px-p.entry)/p.entry*100:0;return`<tr><td>${p.sym.replace('USDT','')}</td><td>${fmt(p.entry)}</td><td>${fmt(p.tp)}</td><td>${fmt(p.sl)}</td><td class="${cl(fl)}">${px?pct(fl):'-'}</td></tr>`}).join(''):'<tr><td class="mut">Tidak ada posisi terbuka</td></tr>';
+  $('#jrClosed').innerHTML=n?`<tr><th>Waktu</th><th>Koin</th><th>Hasil</th><th>Bersih</th><th>P&amp;L</th></tr>`+cs.slice(0,60).map(t=>`<tr><td>${jt(t.closeAt)}</td><td>${t.sym.replace('USDT','')}</td><td>${t.reason}</td><td class="${cl(t.net)}">${pct(t.net)}</td><td class="${cl(t.pnl)}">${t.pnl.toFixed(2)}</td></tr>`).join(''):'<tr><td class="mut">Belum ada riwayat</td></tr>';
+}
+function csv(){
+  const h='waktu_tutup,koin,masuk,keluar,hasil,bersih_persen,pnl_usdt\n';
+  const b=jr.closed.map(t=>[new Date(t.closeAt).toISOString(),t.sym,t.entry,t.exit,t.reason,t.net.toFixed(4),t.pnl.toFixed(4)].join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([h+b],{type:'text/csv'}));a.download='jurnal-scalp.csv';a.click();
+}
+
+// ---------- Setelan ----------
+function renderForm(){
+  $('#form').innerHTML=FIELDS.map(([k,lb,ty,op])=>{
+    const id='f_'+k;
+    if(ty==='sel')return`<label class="f" for="${id}">${lb}</label><select id="${id}">${op.map(o=>`<option ${cfg[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    return`<label class="f" for="${id}">${lb}</label><input id="${id}" type="${ty==='num'?'number':'text'}" ${ty==='num'?'step="any"':''} value="${String(cfg[k]).replace(/"/g,'&quot;')}">`;
+  }).join('');
+  $('#btSym').innerHTML='<option value="ALL">Semua koin</option>'+syms().map(s=>`<option>${s}</option>`).join('');
+}
+function readForm(){
+  FIELDS.forEach(([k,,ty])=>{const el=$('#f_'+k);if(!el)return;if(ty==='num'){const v=parseFloat(el.value);if(!isNaN(v))cfg[k]=v}else cfg[k]=el.value.trim()});
+  save(LSK,cfg);renderForm();
+}
+function setAuto(on){
+  clearInterval(S.timer);S.timer=null;
+  if(on){
+    try{if('Notification'in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
+    S.timer=setInterval(scanAll,Math.max(5,cfg.refresh)*1000);scanAll();
+    try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(w=>S.wake=w).catch(()=>{})}catch(e){}
+  }else{try{S.wake&&S.wake.release()}catch(e){}S.wake=null}
+}
+
+// ---------- Init ----------
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='tab-'+b.dataset.tab));
+  if(b.dataset.tab==='jr')renderJr();
+});
+$('#btnScan').onclick=scanAll;
+$('#auto').onchange=e=>setAuto(e.target.checked);
+$('#btRun').onclick=runBt;
+$('#autoPaper').checked=!!cfg.autoPaper;
+$('#autoPaper').onchange=e=>{cfg.autoPaper=e.target.checked;save(LSK,cfg)};
+$('#stSave').onclick=()=>{readForm();$('#stMsg').textContent='Tersimpan';setTimeout(()=>$('#stMsg').textContent='',2000);if(S.timer)setAuto(true);scanAll()};
+$('#stTg').onclick=async()=>{readForm();$('#stMsg').textContent='Mengirim…';const ok=await tg('Tes Scalp Radar: koneksi Telegram berhasil.');$('#stMsg').textContent=ok?'Terkirim ✓':'Gagal, cek token dan chat ID'};
+function preset(q){
+  Object.assign(cfg,q==='IDR'?{quote:'IDR',fee:0.22,slip:0.05}:{quote:'USDT',fee:0.10,slip:0.02});
+  save(LSK,cfg);renderForm();$('#stMsg').textContent='Preset '+q+' dipakai';scanAll();
+}
+$('#pIDR').onclick=()=>preset('IDR');
+$('#pUSDT').onclick=()=>preset('USDT');
+$('#jrCsv').onclick=csv;
+$('#jrReset').onclick=()=>{if(confirm('Hapus semua riwayat dan posisi paper?')){jr={open:[],closed:[]};save(LSJ,jr);renderJr()}};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.timer)scanAll()});
+renderForm();renderRadar();renderJr();scanAll();
+</script>
+</body>
+</html>
