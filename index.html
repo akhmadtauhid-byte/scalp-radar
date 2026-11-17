@@ -100,8 +100,8 @@ footer{padding:14px;text-align:center;color:var(--mut);font-size:11px}
 </section>
 
 <section id="tab-st">
-<div class="bar"><button class="btn alt" id="pIDR">Preset Tokocrypto (IDR)</button><button class="btn alt" id="pUSDT">Preset Binance (USDT)</button></div>
-<div class="note">Preset IDR: fee 0,22% per sisi (taker rupiah + CFX) dan slippage 0,05%. Jika ada promo "0 Fee" atau memakai order Limit (maker), ubah fee secara manual.</div>
+<div class="bar"><button class="btn alt" id="pIDR">Preset IDR (Indodax + fee Tokocrypto)</button><button class="btn alt" id="pUSDT">Preset Binance (USDT)</button></div>
+<div class="note">Preset IDR: harga dibaca dari Indodax (rupiah), sedangkan fee 0,22% per sisi dan slippage 0,05% dihitung sesuai Tokocrypto. Harga kedua bursa mirip tetapi tidak persis sama. Koin yang sepi di Indodax otomatis memakai data Binance. Jika ada promo "0 Fee" atau memakai order Limit (maker), ubah fee secara manual.</div>
 <div id="form"></div>
 <div class="bar" style="margin-top:14px"><button class="btn" id="stSave">Simpan</button><button class="btn alt" id="stTg">Tes Telegram</button><span class="mut" id="stMsg"></span></div>
 <div class="note">Data harga: API publik Binance (pasar spot). Fee Binance dan Tokocrypto berbeda, isi fee sesuai akun Anda agar hitungan bersih akurat. Token Telegram tersimpan hanya di browser perangkat ini.</div>
@@ -187,7 +187,7 @@ const LSK='scalpradar.v1',LSJ='scalpradar.journal.v1';
 const DEF={tf:'5m',quote:'IDR',symbols:'BTC,ETH,BNB,SOL,XRP,DOGE,ADA,TRX,LINK,AVAX',fee:0.22,slip:0.05,tpAtr:2,slAtr:1.2,minScore:70,minRR:1,maxBars:24,cooldown:15,refresh:15,modal:1000,risk:1,tgToken:'',tgChat:'',autoPaper:false};
 const FIELDS=[
 ['tf','Timeframe','sel',['1m','3m','5m','15m']],
-['quote','Pasangan (IDR = Tokocrypto rupiah)','sel',['IDR','USDT']],
+['quote','Sumber harga (IDR = Indodax rupiah)','sel',['IDR','USDT']],
 ['symbols','Daftar koin (kode saja, pisah koma)','txt'],
 ['fee','Fee per sisi (%)','num'],
 ['slip','Slippage per sisi (%)','num'],
@@ -222,21 +222,35 @@ const mapK=a=>a.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
 async function getK(sym,tf,lim){return mapK(await api(`/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${lim}`))}
 async function getKN(sym,tf,n){let out=[],end=null;while(out.length<n){const lim=Math.min(1000,n-out.length);const a=await api(`/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${lim}`+(end?`&endTime=${end}`:''));if(!a.length)break;const m=mapK(a);out=m.concat(out);end=m[0].t-1;if(a.length<lim)break}return out}
 
-const TOKO='https://www.tokocrypto.com';
-async function tokoK(base,tf,lim){
-  const r=await fetch(`${TOKO}/open/v1/market/klines?symbol=${base}_IDR&interval=${tf}&limit=${lim}`);
+async function indodaxK(base,tf,lim){
+  const mins=(TFMS[tf]||300000)/60000,step=mins*60,nowS=Math.floor(Date.now()/1000);
+  const from=nowS-(lim+2)*step,rawTf=mins===15?'15':'1';
+  const r=await fetch(`https://indodax.com/tradingview/history_v2?symbol=${base}IDR&tf=${rawTf}&from=${from}&to=${nowS}`);
   if(!r.ok)throw new Error('HTTP '+r.status);
-  const j=await r.json();
-  let a=Array.isArray(j)?j:(j&&j.data);
-  if(a&&!Array.isArray(a)&&Array.isArray(a.data))a=a.data;
-  if(!Array.isArray(a)||!a.length)throw new Error('format');
-  const m=a.map(k=>Array.isArray(k)?{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}:{t:+(k.openTime||k.t),o:+k.open,h:+k.high,l:+k.low,c:+k.close,v:+k.volume});
-  if(m.some(x=>!isFinite(x.c)||!isFinite(x.t)||!isFinite(x.v)))throw new Error('format');
-  m.sort((x,y)=>x.t-y.t);return m;
+  const a=await r.json();
+  if(!Array.isArray(a)||!a.length)throw new Error('kosong');
+  const rows=a.map(k=>({t:+k.Time,o:+k.Open,h:+k.High,l:+k.Low,c:+k.Close,v:+k.Volume}));
+  if(rows.some(x=>!isFinite(x.t)||!isFinite(x.c)||!isFinite(x.h)||!isFinite(x.l)||!isFinite(x.v)))throw new Error('format');
+  rows.sort((x,y)=>x.t-y.t);
+  const bk=new Map();
+  for(const x of rows){
+    const b=Math.floor(x.t/step)*step,e=bk.get(b);
+    if(!e)bk.set(b,{t:b,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v});
+    else{if(x.h>e.h)e.h=x.h;if(x.l<e.l)e.l=x.l;e.c=x.c;e.v+=x.v}
+  }
+  if(bk.size<40)throw new Error('sepi');
+  let first=Infinity;bk.forEach((v,k)=>{if(k<first)first=k});
+  const lastB=Math.floor(nowS/step)*step,out=[];let prev=null;
+  for(let b=first;b<=lastB;b+=step){
+    const e=bk.get(b);
+    if(e){out.push(e);prev=e.c}
+    else if(prev!=null)out.push({t:b,o:prev,h:prev,l:prev,c:prev,v:0});
+  }
+  return out.slice(-lim).map(x=>({t:x.t*1000,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v}));
 }
 async function fetchK(base,tf,lim){
   if(cfg.quote==='IDR'){
-    try{const m=await tokoK(base,tf,lim);if(m.length>=80)return{cs:m,src:'Tokocrypto IDR'}}catch(e){}
+    try{const m=await indodaxK(base,tf,Math.min(lim,150));if(m.length>=80)return{cs:m,src:'Indodax IDR'}}catch(e){}
     return{cs:await getK(base+'USDT',tf,lim),src:'Binance USDT (cadangan)'};
   }
   return{cs:await getK(base+'USDT',tf,lim),src:'Binance USDT'};
