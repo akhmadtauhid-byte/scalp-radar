@@ -53,6 +53,8 @@ canvas{width:100%;height:150px;background:#0e151d;border-radius:10px;margin-top:
 .note{font-size:12px;color:var(--mut);margin:10px 0;line-height:1.5}
 .warn{background:#2a1f0c;border:1px solid #5a4313;color:#f1d08a;border-radius:10px;padding:10px;font-size:12px;margin:10px 0}
 h3{margin:16px 0 6px;font-size:14px}
+.okb{background:#0f2a1a;border:1px solid #1f6b3d;color:#9fe3b6;border-radius:10px;padding:10px;font-size:12px;margin:10px 0}
+.badb{background:#2a1212;border:1px solid #6b2020;color:#f5b0b0;border-radius:10px;padding:10px;font-size:12px;margin:10px 0}
 .kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
 .kpi div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .kpi b{display:block;font-size:16px}
@@ -76,6 +78,7 @@ footer{padding:14px;text-align:center;color:var(--mut);font-size:11px}
 <span class="mut" id="last"></span>
 </div>
 <div class="warn">Tab ini harus tetap terbuka agar pemindaian jalan. Sinyal adalah hasil aturan indikator, bukan jaminan untung. Selalu uji dulu di Backtest dan Jurnal (paper).</div>
+<div id="cfgBar"></div>
 <div id="cards"></div>
 </section>
 
@@ -84,7 +87,7 @@ footer{padding:14px;text-align:center;color:var(--mut);font-size:11px}
 <select id="btSym"></select>
 <label class="f">Jumlah candle (maks 5000)</label>
 <input id="btN" type="number" value="3000">
-<div class="bar" style="margin-top:12px"><button class="btn" id="btRun">Jalankan backtest</button><span class="mut" id="btMsg"></span></div>
+<div class="bar" style="margin-top:12px"><button class="btn" id="btRun">Jalankan backtest</button><button class="btn alt" id="btCmp">Bandingkan otomatis</button></div><div class="mut" id="btMsg" style="margin-bottom:8px"></div><div class="note">"Bandingkan otomatis" menguji 3 timeframe (15m, 1h, 4h) dan 2 mode sinyal sekaligus dengan setelan fee Anda.</div>
 <div id="btOut"></div>
 </section>
 
@@ -112,7 +115,7 @@ footer{padding:14px;text-align:center;color:var(--mut);font-size:11px}
 
 <script>
 // ==CORE==
-const TFMS={'1m':60000,'3m':180000,'5m':300000,'15m':900000};
+const TFMS={'1m':60000,'3m':180000,'5m':300000,'15m':900000,'1h':3600000,'4h':14400000};
 function ema(a,p){const k=2/(p+1),o=new Array(a.length);let e=a[0];for(let i=0;i<a.length;i++){e=i===0?a[0]:a[i]*k+e*(1-k);o[i]=e}return o}
 function rsiS(c,p=14){const o=new Array(c.length).fill(null);if(c.length<=p)return o;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d}g/=p;l/=p;o[p]=l===0?100:100-100/(1+g/l);for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p;o[i]=l===0?100:100-100/(1+g/l)}return o}
 function atrS(h,l,c,p=14){const n=c.length,tr=new Array(n),o=new Array(n).fill(null);tr[0]=h[0]-l[0];for(let i=1;i<n;i++)tr[i]=Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1]));if(n<p)return o;let a=0;for(let i=0;i<p;i++)a+=tr[i];a/=p;o[p-1]=a;for(let i=p;i<n;i++){a=(a*(p-1)+tr[i])/p;o[i]=a}return o}
@@ -127,21 +130,34 @@ function prepare(cs){
 function signalAt(ind,i,cfg,entryPx){
   if(i<60||ind.atr[i]==null||ind.rsi[i]==null||ind.vwap[i]==null)return null;
   const{o,h,l,c,v,e9,e21,e50,rsi,atr,vwap}=ind;
-  let score=0;const why=[];
-  const gate=e9[i]>e21[i];
-  if(gate){score+=20;why.push('EMA9>EMA21')}
-  if(c[i]>e50[i]){score+=10;why.push('Di atas EMA50')}
-  if(e21[i]>e21[i-3]){score+=5;why.push('EMA21 naik')}
+  let score=0,gate=false,gateMsg='Tren belum naik (EMA9 di bawah EMA21)';const why=[];
   const r=rsi[i];
-  if(r>=50&&r<=70){score+=15;why.push('RSI '+r.toFixed(0))}else if(r>=45&&r<50){score+=5;why.push('RSI '+r.toFixed(0))}else if(r>75){score-=15;why.push('RSI jenuh beli')}
-  if(rsi[i-1]!=null&&r>rsi[i-1]){score+=5;why.push('RSI naik')}
   let vs=0;for(let k=i-20;k<i;k++)vs+=v[k];const vavg=vs/20,volR=vavg>0?v[i]/vavg:0;
-  if(volR>=1.5){score+=20;why.push('Volume x'+volR.toFixed(1))}else if(volR>=1.2){score+=10;why.push('Volume x'+volR.toFixed(1))}
-  if(c[i]>vwap[i]){score+=10;why.push('Di atas VWAP')}
-  let hh=-Infinity;for(let k=i-20;k<i;k++)if(h[k]>hh)hh=h[k];
-  if(c[i]>hh){score+=10;why.push('Breakout 20 candle')}
-  else if(l[i]<=e21[i]*1.001&&c[i]>e21[i]&&c[i]>o[i]){score+=10;why.push('Pantulan EMA21')}
-  if(c[i]>o[i]){score+=5;why.push('Candle hijau')}
+  if(cfg.mode==='pullback'){
+    const up=e9[i]>e21[i]&&e21[i]>e50[i]&&e21[i]>e21[i-3];
+    const touch=l[i]<=e21[i]*1.001,bounce=c[i]>e21[i]&&c[i]>o[i];
+    gate=up&&touch&&bounce;
+    gateMsg=!up?'Tren naik belum terbentuk (EMA9 > EMA21 > EMA50)':'Belum ada pantulan dari EMA21';
+    if(up){score+=30;why.push('Tren naik')}
+    if(touch&&bounce){score+=30;why.push('Pantulan EMA21')}
+    if(r>=40&&r<=60){score+=15;why.push('RSI '+r.toFixed(0))}else if(r>70){score-=15;why.push('RSI jenuh beli')}
+    if(rsi[i-1]!=null&&r>rsi[i-1]){score+=5;why.push('RSI naik')}
+    if(volR>=1){score+=10;why.push('Volume x'+volR.toFixed(1))}
+    if(c[i]>vwap[i]){score+=10;why.push('Di atas VWAP')}
+  }else{
+    gate=e9[i]>e21[i];
+    if(gate){score+=20;why.push('EMA9>EMA21')}
+    if(c[i]>e50[i]){score+=10;why.push('Di atas EMA50')}
+    if(e21[i]>e21[i-3]){score+=5;why.push('EMA21 naik')}
+    if(r>=50&&r<=70){score+=15;why.push('RSI '+r.toFixed(0))}else if(r>=45&&r<50){score+=5;why.push('RSI '+r.toFixed(0))}else if(r>75){score-=15;why.push('RSI jenuh beli')}
+    if(rsi[i-1]!=null&&r>rsi[i-1]){score+=5;why.push('RSI naik')}
+    if(volR>=1.5){score+=20;why.push('Volume x'+volR.toFixed(1))}else if(volR>=1.2){score+=10;why.push('Volume x'+volR.toFixed(1))}
+    if(c[i]>vwap[i]){score+=10;why.push('Di atas VWAP')}
+    let hh=-Infinity;for(let k=i-20;k<i;k++)if(h[k]>hh)hh=h[k];
+    if(c[i]>hh){score+=10;why.push('Breakout 20 candle')}
+    else if(l[i]<=e21[i]*1.001&&c[i]>e21[i]&&c[i]>o[i]){score+=10;why.push('Pantulan EMA21')}
+    if(c[i]>o[i]){score+=5;why.push('Candle hijau')}
+  }
   score=Math.max(0,Math.min(100,score));
   const entry=entryPx||c[i],a=atr[i];
   const tp=entry+cfg.tpAtr*a,sl=entry-cfg.slAtr*a;
@@ -149,7 +165,7 @@ function signalAt(ind,i,cfg,entryPx){
   const cost=2*(cfg.fee+cfg.slip);
   const netTP=tpPct-cost,netSL=slPct+cost,rr=netTP>0?netTP/netSL:0;
   let reject=null;
-  if(!gate)reject='Tren belum naik (EMA9 di bawah EMA21)';
+  if(!gate)reject=gateMsg;
   else if(netTP<=0)reject='Target ('+tpPct.toFixed(2)+'%) lebih kecil dari biaya ('+cost.toFixed(2)+'%)';
   else if(rr<cfg.minRR)reject='R:R bersih '+rr.toFixed(2)+' di bawah '+cfg.minRR;
   else if(score<cfg.minScore)reject='Skor '+score+' di bawah batas '+cfg.minScore;
@@ -184,9 +200,10 @@ function stats(tr){
 
 const $=s=>document.querySelector(s);
 const LSK='scalpradar.v1',LSJ='scalpradar.journal.v1';
-const DEF={tf:'5m',quote:'IDR',symbols:'BTC,ETH,BNB,SOL,XRP,DOGE,ADA,TRX,LINK,AVAX',fee:0.22,slip:0.05,tpAtr:2,slAtr:1.2,minScore:70,minRR:1,maxBars:24,cooldown:15,refresh:15,modal:1000,risk:1,tgToken:'',tgChat:'',autoPaper:false};
+const DEF={tf:'1h',mode:'pullback',quote:'IDR',symbols:'BTC,ETH,BNB,SOL,XRP,DOGE,ADA,TRX,LINK,AVAX',fee:0.22,slip:0.05,tpAtr:2,slAtr:1.2,minScore:70,minRR:1,maxBars:24,cooldown:15,refresh:15,modal:1000,risk:1,tgToken:'',tgChat:'',autoPaper:false};
 const FIELDS=[
-['tf','Timeframe','sel',['1m','3m','5m','15m']],
+['tf','Timeframe','sel',['1m','3m','5m','15m','1h','4h']],
+['mode','Mode sinyal','sel',[['pullback','Pantulan EMA21 (tren naik)'],['momentum','Momentum / breakout']]],
 ['quote','Sumber harga (IDR = Indodax rupiah)','sel',['IDR','USDT']],
 ['symbols','Daftar koin (kode saja, pisah koma)','txt'],
 ['fee','Fee per sisi (%)','num'],
@@ -224,7 +241,7 @@ async function getKN(sym,tf,n){let out=[],end=null;while(out.length<n){const lim
 
 async function indodaxK(base,tf,lim){
   const mins=(TFMS[tf]||300000)/60000,step=mins*60,nowS=Math.floor(Date.now()/1000);
-  const from=nowS-(lim+2)*step,rawTf=mins===15?'15':'1';
+  const from=nowS-(lim+2)*step,rawTf=mins===15?'15':(mins===60?'60':(mins===240?'240':'1'));
   const r=await fetch(`https://indodax.com/tradingview/history_v2?symbol=${base}IDR&tf=${rawTf}&from=${from}&to=${nowS}`);
   if(!r.ok)throw new Error('HTTP '+r.status);
   const a=await r.json();
@@ -348,6 +365,7 @@ ${s.reject?`<div class="rej">⚠ ${s.reject}</div>`:''}
 </div>`;
 }
 function renderRadar(){
+  renderBadge();
   const list=syms().slice().sort((a,b)=>((S.sig[b]||{}).ok?1000:0)+((S.sig[b]||{}).score||0)-(((S.sig[a]||{}).ok?1000:0)+((S.sig[a]||{}).score||0)));
   $('#cards').innerHTML=list.map(card).join('')||'<div class="note">Belum ada koin. Isi di Setelan.</div>';
 }
@@ -364,31 +382,77 @@ function drawLine(cv,ys){
   ys.forEach((y,i)=>{i?g.lineTo(X(i),Y(y)):g.moveTo(X(i),Y(y))});g.stroke();
 }
 function statRow(name,s){return`<tr><td>${name}</td><td>${s.n}</td><td>${s.wr.toFixed(0)}%</td><td class="${cl(s.sum)}">${pct(s.sum,1)}</td><td>${s.pf.toFixed(2)}</td><td>${s.dd.toFixed(1)}%</td></tr>`}
+const LSB='scalpradar.bt.v1';
+const MODES={pullback:'Pantulan EMA21',momentum:'Momentum/breakout'};
+function btKey(tf,mode){return tf+'|'+mode+'|'+cfg.fee+'|'+cfg.slip}
+function btPass(s,so){return s.n>=30&&so.n>=10&&s.sum>0&&so.sum>0&&s.pf>=1.2&&so.pf>=1.1}
+function btSave(tf,mode,s,so){const m=load(LSB,{});m[btKey(tf,mode)]={pass:btPass(s,so),net:s.sum,oos:so.sum,n:s.n,ts:Date.now()};save(LSB,m)}
+function renderBadge(){
+  const m=load(LSB,{})[btKey(cfg.tf,cfg.mode)];
+  let cls='warn',msg;
+  if(!m)msg='Belum diuji. Buka tab Backtest, pilih "Semua koin", lalu jalankan.';
+  else if(m.pass){cls='okb';msg='LULUS backtest (total '+pct(m.net,1)+', 30% data terakhir '+pct(m.oos,1)+', '+m.n+' transaksi). Tetap uji di paper trading dulu.'}
+  else{cls='badb';msg='GAGAL backtest (total '+pct(m.net,1)+', 30% data terakhir '+pct(m.oos,1)+'). Jangan dipakai dengan uang asli.'}
+  const extra=cfg.fee<0.05?' Fee 0%: hasil tidak realistis, tekan Preset IDR di Setelan.':'';
+  $('#cfgBar').innerHTML='<div class="'+cls+'"><b>'+cfg.tf+' · '+(MODES[cfg.mode]||cfg.mode)+' · fee '+cfg.fee+'%</b><br>'+msg+extra+'</div>';
+}
 async function runBt(){
   const sel=$('#btSym').value,n=Math.max(300,Math.min(5000,+$('#btN').value||3000));
-  const list=sel==='ALL'?syms():[sel];$('#btRun').disabled=true;let all=[];const rows=[];
+  const list=sel==='ALL'?syms():[sel];$('#btRun').disabled=true;$('#btCmp').disabled=true;let all=[];const rows=[];
   for(let k=0;k<list.length;k++){
     $('#btMsg').textContent=`Memuat ${list[k]} (${k+1}/${list.length})…`;
     try{
       const cs=(await getKN(list[k]+'USDT',cfg.tf,n+1)).slice(0,-1);
-      const tr=backtest(cs,cfg);tr.forEach(t=>t.sym=list[k]);all=all.concat(tr);rows.push([list[k],stats(tr),cs.length]);
+      const t70=cs[Math.floor(cs.length*0.7)].t;
+      const tr=backtest(cs,cfg);tr.forEach(t=>{t.sym=list[k];t.oos=t.t>=t70});all=all.concat(tr);rows.push([list[k],stats(tr),cs.length]);
     }catch(e){rows.push([list[k],null,0])}
   }
-  all.sort((a,b)=>a.t-b.t);const tot=stats(all);
-  const bars=rows.reduce((a,r)=>a+r[2],0),days=(rows.length&&rows[0][2])?(rows[0][2]*(TFMS[cfg.tf]||300000)/86400000):0;
-  let verdict;
+  all.sort((a,b)=>a.t-b.t);const tot=stats(all),oo=stats(all.filter(t=>t.oos));
+  if(sel==='ALL')btSave(cfg.tf,cfg.mode,tot,oo);
+  const days=(rows.length&&rows[0][2])?(rows[0][2]*(TFMS[cfg.tf]||300000)/86400000):0;
+  let verdict,vc='warn';
   if(!tot.n)verdict='Tidak ada transaksi. Aturan terlalu ketat atau target tidak melewati biaya.';
+  else if(btPass(tot,oo)){verdict='Lulus uji: positif di seluruh periode dan di 30% data terakhir. Lanjutkan ke paper trading 1-2 minggu sebelum uang asli.';vc='okb'}
   else if(tot.sum<=0)verdict='Hasil bersih NEGATIF setelah fee dan slippage. Aturan ini belum layak dipakai dengan uang asli.';
-  else if(tot.pf<1.3||tot.n<30)verdict='Positif tetapi tipis atau sampel sedikit. Lanjutkan uji di paper trading sebelum percaya.';
-  else verdict='Positif pada data historis ini. Tetap uji di paper trading: hasil lampau tidak menjamin ke depan.';
-  $('#btOut').innerHTML=`<div class="note">Backtest memakai data Binance (pasangan USDT) sebagai pendekatan, karena histori panjang pasangan IDR tidak tersedia. Pergerakan persentasenya mirip, tetapi spread pasangan IDR biasanya lebih lebar, jadi hasil nyata bisa lebih buruk.</div><div class="note">Periode uji ±${days.toFixed(1)} hari (${cfg.tf}). Entry di open candle berikutnya setelah sinyal; jika TP dan SL tersentuh di candle yang sama, dihitung SL (konservatif). Biaya bolak-balik ${(2*(cfg.fee+cfg.slip)).toFixed(2)}%.</div>
-<div class="kpi"><div class="mut">Transaksi<b>${tot.n}</b></div><div class="mut">Win rate<b>${tot.wr.toFixed(0)}%</b></div><div class="mut">Total bersih<b class="${cl(tot.sum)}">${pct(tot.sum,1)}</b></div><div class="mut">Profit factor<b>${tot.pf.toFixed(2)}</b></div><div class="mut">Rata-rata/transaksi<b class="${cl(tot.exp)}">${pct(tot.exp,3)}</b></div><div class="mut">Drawdown maks<b>${tot.dd.toFixed(1)}%</b></div></div>
-<div class="${tot.sum>0?'note':'warn'}">${verdict}</div>
+  else verdict='Positif tetapi belum meyakinkan (30% data terakhir lemah, profit factor rendah, atau transaksi terlalu sedikit). Jangan pakai uang asli.';
+  $('#btOut').innerHTML=`<div class="note">Backtest memakai data Binance (pasangan USDT) sebagai pendekatan, karena histori panjang pasangan IDR tidak tersedia. Spread pasangan IDR biasanya lebih lebar, jadi hasil nyata bisa lebih buruk.</div><div class="note">Mode ${MODES[cfg.mode]||cfg.mode}, periode uji ±${days.toFixed(1)} hari (${cfg.tf}). Entry di open candle berikutnya setelah sinyal; jika TP dan SL tersentuh di candle yang sama, dihitung SL (konservatif). Biaya bolak-balik ${(2*(cfg.fee+cfg.slip)).toFixed(2)}%.</div>
+<div class="kpi"><div class="mut">Transaksi<b>${tot.n}</b></div><div class="mut">Win rate<b>${tot.wr.toFixed(0)}%</b></div><div class="mut">Total bersih<b class="${cl(tot.sum)}">${pct(tot.sum,1)}</b></div><div class="mut">Profit factor<b>${tot.pf.toFixed(2)}</b></div><div class="mut">Rata-rata/transaksi<b class="${cl(tot.exp)}">${pct(tot.exp,3)}</b></div><div class="mut">Drawdown maks<b>${tot.dd.toFixed(1)}%</b></div><div class="mut">30% data terakhir<b class="${cl(oo.sum)}">${pct(oo.sum,1)}</b>${oo.n} transaksi</div><div class="mut">PF 30% terakhir<b>${oo.pf.toFixed(2)}</b></div></div>
+<div class="${vc}">${verdict}</div>
 <canvas id="btCv"></canvas>
 <div class="note">Kurva = total % bersih kumulatif (satu porsi per transaksi).</div>
-<div class="tw"><table><tr><th>Koin</th><th>Trx</th><th>Win</th><th>Bersih</th><th>PF</th><th>DD</th></tr>${rows.map(r=>r[1]?statRow(r[0].replace('USDT',''),r[1]):`<tr><td>${r[0]}</td><td colspan=5>gagal</td></tr>`).join('')}${rows.length>1?statRow('<b>TOTAL</b>',tot):''}</table></div>
-<div class="note">Waspadai overfitting: jangan mengutak-atik setelan sampai hasil backtest bagus lalu menganggapnya pasti. Uji lagi di periode lain dan di paper trading.</div>`;
-  drawLine($('#btCv'),tot.curve);$('#btMsg').textContent='Selesai';$('#btRun').disabled=false;
+<div class="tw"><table><tr><th>Koin</th><th>Trx</th><th>Win</th><th>Bersih</th><th>PF</th><th>DD</th></tr>${rows.map(r=>r[1]?statRow(r[0],r[1]):`<tr><td>${r[0]}</td><td colspan=5>gagal</td></tr>`).join('')}${rows.length>1?statRow('<b>TOTAL</b>',tot):''}</table></div>
+<div class="note">Waspadai overfitting: jangan mengutak-atik setelan sampai hasil backtest bagus lalu menganggapnya pasti. Syarat lulus: positif di seluruh periode dan di 30% data terakhir, profit factor minimal 1,2, dan transaksi cukup.</div>`;
+  drawLine($('#btCv'),tot.curve);$('#btMsg').textContent='Selesai';$('#btRun').disabled=false;$('#btCmp').disabled=false;renderBadge();
+}
+async function runCompare(){
+  const list=syms();$('#btRun').disabled=true;$('#btCmp').disabled=true;
+  const tfs=['15m','1h','4h'],modes=['pullback','momentum'],cache={},rows=[];
+  const n=Math.max(300,Math.min(5000,+$('#btN').value||3000));
+  for(const tf of tfs){
+    $('#btMsg').textContent='Memuat data '+tf+'…';
+    const res=await Promise.allSettled(list.map(s=>getKN(s+'USDT',tf,n+1)));
+    res.forEach((r,i)=>{if(r.status==='fulfilled')cache[tf+list[i]]=r.value.slice(0,-1)});
+  }
+  $('#btMsg').textContent='Menghitung…';
+  for(const tf of tfs)for(const mode of modes){
+    const c2=Object.assign({},cfg,{mode});let all=[];
+    for(const sym of list){
+      const cs=cache[tf+sym];if(!cs||cs.length<200)continue;
+      const t70=cs[Math.floor(cs.length*0.7)].t,tr=backtest(cs,c2);
+      tr.forEach(t=>{t.oos=t.t>=t70});all=all.concat(tr);
+    }
+    all.sort((a,b)=>a.t-b.t);
+    const st=stats(all),so=stats(all.filter(t=>t.oos));
+    const pass=btPass(st,so);rows.push({tf,mode,st,so,pass});
+    const m=load(LSB,{});m[tf+'|'+mode+'|'+cfg.fee+'|'+cfg.slip]={pass,net:st.sum,oos:so.sum,n:st.n,ts:Date.now()};save(LSB,m);
+  }
+  const np=rows.filter(r=>r.pass).length;
+  const msg=np?`${np} dari ${rows.length} kombinasi lulus. Karena beberapa kombinasi diuji sekaligus, satu bisa lulus karena kebetulan. Lanjutkan ke paper trading 1-2 minggu, jangan langsung uang asli.`:'Tidak ada kombinasi yang lulus. Jangan gunakan uang asli dengan aturan ini.';
+  $('#btOut').innerHTML=`<div class="note">Uji ${list.length} koin, sekitar ${n} candle per timeframe, fee ${cfg.fee}% dan slippage ${cfg.slip}% per sisi. "Akhir" = hasil bersih pada 30% data terakhir yang diuji terpisah.</div>
+<div class="${np?'okb':'badb'}">${msg}</div>
+<div class="tw"><table><tr><th>TF</th><th>Mode</th><th>Trx</th><th>Win</th><th>Bersih</th><th>PF</th><th>Akhir</th><th>Lulus</th></tr>${rows.map(r=>`<tr><td>${r.tf}</td><td>${MODES[r.mode]}</td><td>${r.st.n}</td><td>${r.st.wr.toFixed(0)}%</td><td class="${cl(r.st.sum)}">${pct(r.st.sum,1)}</td><td>${r.st.pf.toFixed(2)}</td><td class="${cl(r.so.sum)}">${pct(r.so.sum,1)}</td><td>${r.pass?'✓':'✗'}</td></tr>`).join('')}</table></div>
+<div class="note">Untuk memakai kombinasi yang lulus: ubah Timeframe dan Mode sinyal di Setelan, lalu lihat lencana di halaman Radar.</div>`;
+  $('#btMsg').textContent='Selesai';$('#btRun').disabled=false;$('#btCmp').disabled=false;renderBadge();
 }
 
 // ---------- Jurnal ----------
@@ -410,7 +474,7 @@ function csv(){
 function renderForm(){
   $('#form').innerHTML=FIELDS.map(([k,lb,ty,op])=>{
     const id='f_'+k;
-    if(ty==='sel')return`<label class="f" for="${id}">${lb}</label><select id="${id}">${op.map(o=>`<option ${cfg[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    if(ty==='sel')return`<label class="f" for="${id}">${lb}</label><select id="${id}">${op.map(o=>{const v=Array.isArray(o)?o[0]:o,t=Array.isArray(o)?o[1]:o;return`<option value="${v}" ${cfg[k]===v?'selected':''}>${t}</option>`}).join('')}</select>`;
     return`<label class="f" for="${id}">${lb}</label><input id="${id}" type="${ty==='num'?'number':'text'}" ${ty==='num'?'step="any"':''} value="${String(cfg[k]).replace(/"/g,'&quot;')}">`;
   }).join('');
   $('#btSym').innerHTML='<option value="ALL">Semua koin</option>'+syms().map(s=>`<option>${s}</option>`).join('');
@@ -437,6 +501,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 $('#btnScan').onclick=scanAll;
 $('#auto').onchange=e=>setAuto(e.target.checked);
 $('#btRun').onclick=runBt;
+$('#btCmp').onclick=runCompare;
 $('#autoPaper').checked=!!cfg.autoPaper;
 $('#autoPaper').onchange=e=>{cfg.autoPaper=e.target.checked;save(LSK,cfg)};
 $('#stSave').onclick=()=>{readForm();$('#stMsg').textContent='Tersimpan';setTimeout(()=>$('#stMsg').textContent='',2000);if(S.timer)setAuto(true);scanAll()};
